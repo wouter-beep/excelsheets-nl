@@ -1,0 +1,266 @@
+// ExcelSheets.nl — datamodel
+// Lokaal: SQLite (DATABASE_URL="file:./dev.db").
+// Productie: zet provider op "postgresql" en DATABASE_URL op je PostgreSQL-database (zie README).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  SALES
+}
+
+enum RequestStatus {
+  NIEUW
+  IN_BEHANDELING
+  INFO_NODIG
+  OFFERTE
+  GEWONNEN
+  AFGEWEZEN
+  AFGEROND
+}
+
+enum ScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  NOT_SCANNED
+  ERROR
+}
+
+enum PublishStatus {
+  DRAFT
+  REVIEW
+  PUBLISHED
+}
+
+model AdminUser {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  passwordHash   String
+  role           Role     @default(EDITOR)
+  active         Boolean  @default(true)
+  sessionVersion Int      @default(1)
+  lastLoginAt    DateTime?
+  createdAt      DateTime @default(now())
+  notes          Note[]
+}
+
+model Contact {
+  id               String    @id @default(cuid())
+  name             String
+  company          String
+  email            String
+  phone            String?
+  preferredContact String    @default("email")
+  internalNotes    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  requests         Request[]
+
+  @@index([email])
+}
+
+model Request {
+  id             String        @id @default(cuid())
+  number         String        @unique
+  publicToken    String        @unique
+  status         RequestStatus @default(NIEUW)
+  goal           String
+  categories     Json
+  story          String
+  situation      Json
+  urgency        String?
+  budget         String?
+  summary        String
+  summaryData    Json
+  classification Json
+  complexity     String
+  typeLabel      String
+  priority       Int           @default(0)
+  source         String?
+  consentAt      DateTime
+  contactId      String
+  contact        Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  notes          Note[]
+  attachments    Attachment[]
+  events         StatusEvent[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deleteAfter    DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Note {
+  id        String     @id @default(cuid())
+  requestId String
+  request   Request    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    AdminUser? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime   @default(now())
+}
+
+model StatusEvent {
+  id        String   @id @default(cuid())
+  requestId String
+  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fromState String?
+  toState   String
+  actor     String?
+  createdAt DateTime @default(now())
+}
+
+model Attachment {
+  id           String     @id @default(cuid())
+  requestId    String?
+  request      Request?   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  uploadToken  String     @unique
+  originalName String
+  storedName   String     @unique
+  size         Int
+  mime         String
+  sha256       String
+  scanStatus   ScanStatus @default(PENDING)
+  scanDetail   String?
+  createdAt    DateTime   @default(now())
+  deleteAfter  DateTime?
+
+  @@index([requestId])
+}
+
+model ArticleTopic {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String
+  articles    Article[]
+}
+
+model Article {
+  id              String         @id @default(cuid())
+  slug            String         @unique
+  number          Int            @unique
+  title           String
+  summary         String
+  subjectYear     Int
+  publishedAt     DateTime?
+  status          PublishStatus  @default(DRAFT)
+  body            String
+  practice        String
+  sources         Json
+  serviceLinks    Json
+  visual          String         @default("grid")
+  seoTitle        String
+  metaDescription String
+  factNote        String?
+  topics          ArticleTopic[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([subjectYear])
+  @@index([status])
+}
+
+model Service {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  sortOrder       Int      @default(0)
+  navTitle        String
+  title           String
+  h1              String
+  lead            String
+  problemTitle    String
+  problem         String
+  deliverables    Json
+  example         Json
+  benefits        Json
+  approach        Json
+  faq             Json
+  visual          String
+  relatedModels   Json
+  seoTitle        String
+  metaDescription String
+  published       Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
+}
+
+model DemoModel {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  sortOrder   Int      @default(0)
+  title       String
+  company     String
+  sector      String
+  summary     String
+  description String
+  audience    String
+  highlights  Json
+  tabs        Json
+  serviceSlug String
+  published   Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+}
+
+model CaseStudy {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  isDemo     Boolean  @default(true)
+  title      String
+  client     String
+  sector     String
+  problem    String
+  solution   String
+  benefits   Json
+  modelSlug  String?
+  published  Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  name      String
+  role      String
+  bio       String
+  photoUrl  String?
+  linkedin  String?
+  sortOrder Int      @default(0)
+  published Boolean  @default(false)
+}
+
+model FaqItem {
+  id        String  @id @default(cuid())
+  question  String
+  answer    String
+  category  String  @default("algemeen")
+  sortOrder Int     @default(0)
+  published Boolean @default(true)
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  target    String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
